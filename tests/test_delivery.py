@@ -88,7 +88,7 @@ class FakeClient:
             assert self.manager is not None
             await self.manager.handle_frame({
                 "type": "job_delivery_authorized",
-                "protocol": 1,
+                "protocol": 2,
                 "job_id": frame["job_id"],
                 "delivery_attempt_id": frame["delivery_attempt_id"],
             })
@@ -104,7 +104,11 @@ def job_ready(
 ) -> dict:
     return {
         "type": "job_ready",
-        "protocol": 1,
+        "protocol": 2,
+        # Every pre-existing case is an AUDIO delivery; the text path has its
+        # own class below. Casa always sends this now — a frame without it is
+        # a legacy row and is refused (see TestModalityContract).
+        "delivery_modality": "audio",
         "job_id": job_id,
         "delivery_attempt_id": attempt_id or f"attempt-{job_id}",
         "route_id": "entry-1",
@@ -137,6 +141,10 @@ async def delivery_manager():
         directory=directory,
         idle_stability_ms=750,
         clock=clock,
+        endpoint_resolver=lambda device_id, modality: (
+            {"entity_id": "notify.phone", "modality": "text"}
+            if modality == "text" else None
+        ),
     )
     client.manager = manager
     try:
@@ -589,7 +597,7 @@ class TestFinalRechecksAndRevocation:
                 return
             await manager.handle_frame({
                 "type": "job_delivery_authorized",
-                "protocol": 1,
+                "protocol": 2,
                 "job_id": frame["job_id"],
                 "delivery_attempt_id": frame["delivery_attempt_id"],
             })
@@ -612,7 +620,7 @@ class TestFinalRechecksAndRevocation:
 
         await manager.handle_frame({
             "type": "job_revoke",
-            "protocol": 1,
+            "protocol": 2,
             "job_id": offer["job_id"],
             "delivery_attempt_id": offer["delivery_attempt_id"],
             "reason": "cancelled",
@@ -633,7 +641,7 @@ class TestFinalRechecksAndRevocation:
             if frame["type"] != "job_delivery_start":
                 return
             base = {
-                "protocol": 1,
+                "protocol": 2,
                 "job_id": frame["job_id"],
                 "delivery_attempt_id": frame["delivery_attempt_id"],
             }
@@ -670,7 +678,7 @@ class TestFinalRechecksAndRevocation:
 
         await manager.handle_frame({
             "type": "job_revoke",
-            "protocol": 1,
+            "protocol": 2,
             "job_id": offer["job_id"],
             "delivery_attempt_id": offer["delivery_attempt_id"],
             "reason": "cancelled",
@@ -706,7 +714,7 @@ class TestFinalRechecksAndRevocation:
 
         await manager.handle_frame({
             "type": "job_revoke",
-            "protocol": 1,
+            "protocol": 2,
             "job_id": queued["job_id"],
             "delivery_attempt_id": queued["delivery_attempt_id"],
             "reason": "cancelled",
@@ -732,7 +740,7 @@ class TestFinalRechecksAndRevocation:
                 return
             await manager.handle_frame({
                 "type": "job_revoke",
-                "protocol": 1,
+                "protocol": 2,
                 "job_id": frame["job_id"],
                 "delivery_attempt_id": frame["delivery_attempt_id"],
                 "reason": "cancelled",
@@ -794,7 +802,7 @@ class TestFinalRechecksAndRevocation:
         await manager.drain_for_test()
         assert manager.client.sent[-1] == {
             "type": "job_nack",
-            "protocol": 1,
+            "protocol": 2,
             "job_id": "job-1",
             "delivery_attempt_id": "attempt-job-1",
             "reason": "authorization_timeout",
@@ -812,7 +820,7 @@ class TestFinalRechecksAndRevocation:
                 return
             await manager.handle_frame({
                 "type": "job_delivery_authorized",
-                "protocol": 1,
+                "protocol": 2,
                 "job_id": frame["job_id"],
                 "delivery_attempt_id": frame["delivery_attempt_id"],
             })
@@ -842,7 +850,7 @@ class TestFinalRechecksAndRevocation:
             manager.directory.set_state("dev-k", "idle", changed_at=clock.now)
             await manager.handle_frame({
                 "type": "job_delivery_authorized",
-                "protocol": 1,
+                "protocol": 2,
                 "job_id": frame["job_id"],
                 "delivery_attempt_id": frame["delivery_attempt_id"],
             })
@@ -872,7 +880,7 @@ class TestFinalRechecksAndRevocation:
         manager.directory.set_state("dev-k", "idle", changed_at=clock.now)
         await manager.handle_frame({
             "type": "job_delivery_authorized",
-            "protocol": 1,
+            "protocol": 2,
             "job_id": "job-1",
             "delivery_attempt_id": "attempt-job-1",
         })
@@ -1307,7 +1315,7 @@ class TestProtocolAndPrivacy:
         "changes",
         [
             {"protocol": True},
-            {"protocol": 1.0},
+            {"protocol": 2.0},
             {"route_id": "entry-other"},
             {"expires_at": 100.0},
             {"ready_at": float("nan")},
@@ -1375,3 +1383,219 @@ class TestProtocolAndPrivacy:
         assert result_canary not in caplog.text
         assert exception_canary not in caplog.text
         assert all(record.exc_info is None for record in caplog.records)
+
+
+class TestTextDelivery:
+    """A notification endpoint must reach the same DELIVERED state as audio.
+
+    The live failure (#233/#224) is that a phone has no `assist_satellite`, so
+    a finished specialist answer had nowhere to go and expired unheard. Text
+    delivery closes that, but it must not become a side door: Casa's registry
+    only accepts `job_delivered` from a claimed, authorized attempt, so the
+    text path traverses the SAME claim -> delivery_start -> authorized ->
+    playback_started -> delivered sequence. What it skips is only what is
+    physically about a speaker: the room-idle wait and the playback slot.
+    """
+
+    async def test_text_delivery_walks_the_full_authorization_sequence(
+        self, delivery_manager,
+    ):
+        manager, clock = delivery_manager
+        await manager.handle_frame(
+            job_ready("job-t", delivery_modality="text"))
+        await clock.settle()
+
+        assert sent_types(manager.client) == [
+            "job_claimed",
+            "job_delivery_start",
+            "job_playback_started",
+            "job_delivered",
+        ]
+        manager.hass.services.async_call.assert_awaited_once_with(
+            "notify",
+            "send_message",
+            {"entity_id": "notify.phone", "message": "The ruling is no."},
+            blocking=True,
+        )
+
+    async def test_text_delivery_does_not_wait_for_the_room_to_be_idle(
+        self, delivery_manager,
+    ):
+        """A satellite mid-conversation says nothing about a phone push."""
+        manager, clock = delivery_manager
+        manager.directory.set_state("dev-k", "responding", changed_at=100.0)
+
+        await manager.handle_frame(
+            job_ready("job-t", delivery_modality="text"))
+        await clock.settle()
+
+        assert "job_delivered" in sent_types(manager.client)
+
+    async def test_no_text_endpoint_is_nacked_not_announced(
+        self, delivery_manager,
+    ):
+        """The endpoint can disappear between the offer and the answer."""
+        manager, clock = delivery_manager
+        manager._endpoint_resolver = lambda device_id, modality: None
+
+        await manager.handle_frame(
+            job_ready("job-t", delivery_modality="text"))
+        await clock.settle()
+
+        assert sent_types(manager.client) == ["job_nack"]
+        assert manager.client.sent[0]["reason"] == "no_text_endpoint"
+        manager.hass.services.async_call.assert_not_awaited()
+
+    async def test_a_text_job_never_reaches_the_satellite(
+        self, delivery_manager,
+    ):
+        """Delivery-time scoping: the promise was a notification."""
+        manager, clock = delivery_manager
+        await manager.handle_frame(
+            job_ready("job-t", delivery_modality="text"))
+        await clock.settle()
+
+        domains = [
+            call.args[0]
+            for call in manager.hass.services.async_call.await_args_list
+        ]
+        assert "assist_satellite" not in domains
+
+    async def test_a_revoked_text_job_is_acked_not_delivered(
+        self, delivery_manager,
+    ):
+        manager, clock = delivery_manager
+        manager.client.authorize = False
+
+        await manager.handle_frame(
+            job_ready("job-t", delivery_modality="text"))
+        await clock.settle()
+        await manager.handle_frame({
+            "type": "job_revoke",
+            "protocol": 2,
+            "job_id": "job-t",
+            "delivery_attempt_id": "attempt-job-t",
+        })
+        await clock.settle()
+
+        assert "job_delivered" not in sent_types(manager.client)
+        assert "job_revoked" in sent_types(manager.client)
+
+
+class TestModalityContract:
+    async def test_a_frame_without_a_modality_is_refused(
+        self, delivery_manager,
+    ):
+        """Fail closed on legacy rows.
+
+        A job persisted before this feature has no recorded promise. Guessing
+        `audio` is exactly the bug: it announces in a room for a job that may
+        have been asked from a phone. Silence is the safe answer; the job
+        expires and the operator can ask again.
+        """
+        manager, clock = delivery_manager
+        frame = job_ready("job-legacy")
+        del frame["delivery_modality"]
+
+        await manager.handle_frame(frame)
+        await clock.settle()
+
+        assert manager.client.sent == []
+        manager.hass.services.async_call.assert_not_awaited()
+
+    @pytest.mark.parametrize("modality", ["", "AUDIO", "video", 1, None])
+    async def test_an_unknown_modality_is_refused(
+        self, delivery_manager, modality,
+    ):
+        manager, clock = delivery_manager
+        await manager.handle_frame(
+            job_ready("job-x", delivery_modality=modality))
+        await clock.settle()
+
+        assert manager.client.sent == []
+
+    async def test_a_v1_protocol_frame_is_ignored(self, delivery_manager):
+        """A Casa that predates endpoint delivery cannot be trusted to have
+        chosen an endpoint at all."""
+        manager, clock = delivery_manager
+        await manager.handle_frame(job_ready("job-v1", protocol=1))
+        await clock.settle()
+
+        assert manager.client.sent == []
+
+
+class TestTextDeliveryFailure:
+    async def test_a_failed_notification_is_not_acknowledged_as_delivered(
+        self, delivery_manager,
+    ):
+        """Never claim an answer went out when it did not.
+
+        `job_delivered` is what lets Casa retire the job. Sending it after a
+        failed push would discard the answer permanently — the same silent loss
+        this release exists to end, just one step further along.
+        """
+        manager, clock = delivery_manager
+        manager.hass.services.async_call = AsyncMock(
+            side_effect=RuntimeError("notify platform down"))
+
+        await manager.handle_frame(
+            job_ready("job-t", delivery_modality="text"))
+        await clock.settle()
+
+        assert "job_delivered" not in sent_types(manager.client)
+        assert sent_types(manager.client)[-1] == "job_playback_started"
+
+    async def test_the_device_worker_survives_a_failed_notification(
+        self, delivery_manager,
+    ):
+        """One bad push must not take out delivery for that device."""
+        manager, clock = delivery_manager
+        manager.hass.services.async_call = AsyncMock(
+            side_effect=[RuntimeError("transient"), None])
+
+        await manager.handle_frame(
+            job_ready("job-a", delivery_modality="text"))
+        await clock.settle()
+        await manager.handle_frame(
+            job_ready("job-b", delivery_modality="text"))
+        await clock.settle()
+
+        delivered = [
+            frame for frame in manager.client.sent
+            if frame["type"] == "job_delivered"
+        ]
+        assert [frame["job_id"] for frame in delivered] == ["job-b"]
+
+    async def test_a_reoffer_after_a_failed_push_is_accepted_and_delivered(
+        self, delivery_manager,
+    ):
+        """The other half of the recovery contract.
+
+        Casa's lease lapses and it reoffers the same job under a fresh attempt.
+        The manager must take that reoffer — not suppress it as already seen or
+        already playing — and a push that works this time must produce
+        `job_delivered`. Proving each side separately is not enough: it is the
+        handover between them that decides whether the operator's answer
+        arrives or expires (casa-ha-app #233/#224).
+        """
+        manager, clock = delivery_manager
+        manager.hass.services.async_call = AsyncMock(
+            side_effect=[RuntimeError("push failed"), None])
+
+        await manager.handle_frame(job_ready(
+            "job-t", attempt_id="attempt-1", delivery_modality="text"))
+        await clock.settle()
+        assert "job_delivered" not in sent_types(manager.client)
+
+        await manager.handle_frame(job_ready(
+            "job-t", attempt_id="attempt-2", sequence=2,
+            delivery_modality="text"))
+        await clock.settle()
+
+        delivered = [
+            frame for frame in manager.client.sent
+            if frame["type"] == "job_delivered"
+        ]
+        assert len(delivered) == 1
+        assert delivered[0]["delivery_attempt_id"] == "attempt-2"
+        assert manager.hass.services.async_call.await_count == 2

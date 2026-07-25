@@ -50,7 +50,7 @@ def test_ack_loss_replay_boundary_is_explicit(filename):
     assert "can never replay after a manager or integration process restart" not in text
 
 
-def test_release_metadata_is_v070_with_existing_ha_minimum():
+def test_release_metadata_is_v080_with_existing_ha_minimum():
     manifest = json.loads(
         (_ROOT / "custom_components/casa/manifest.json").read_text(
             encoding="utf-8",
@@ -58,7 +58,7 @@ def test_release_metadata_is_v070_with_existing_ha_minimum():
     )
     hacs = json.loads((_ROOT / "hacs.json").read_text(encoding="utf-8"))
 
-    assert manifest["version"] == "0.7.0"
+    assert manifest["version"] == "0.8.0"
     assert hacs["homeassistant"] == "2026.4.0"
 
 
@@ -93,16 +93,16 @@ def test_readme_documents_parent_and_child_configuration_boundaries():
 def test_coordinated_voice_handoff_upgrade_is_explicit(filename):
     text = _normalized(filename)
 
-    assert "Upgrade Casa to v0.90.0 before installing integration v0.6.0" in text
-    assert "WebSocket protocol 2" in text
+    assert "Upgrade Casa to v0.121.0 before installing integration v0.8.0" in text
+    assert "WebSocket protocol 3" in text
     assert "background_jobs" in text
-    assert "satellite_announce" in text
+    assert "endpoint_delivery" in text
     assert "voice_handoff" in text
     assert "fails closed before a job is created" in text
     assert "no legacy handoff fallback" in text
     assert "GET /api/voice/agents" in text
-    assert "cannot create a new v0.6.0 entry" in text
-    assert "existing v0.6.0 entry with retained children may load in degraded mode" in text
+    assert "cannot create a new v0.8.0 entry" in text
+    assert "existing v0.8.0 entry with retained children may load in degraded mode" in text
     assert "without catalog reconciliation" in text
 
 
@@ -145,3 +145,43 @@ def test_readme_e2e_matrix_covers_dynamic_agent_release_boundaries():
     assert "must never be silently lost" in text
     assert "listening device once" not in text
     assert "present WebSocket child registers" not in text
+
+
+@pytest.mark.parametrize("filename", ["README.md", "info.md"])
+def test_deferred_delivery_endpoint_rules_are_explicit(filename):
+    """The promise Casa makes is user-visible and must be documented.
+
+    Each assertion is a commitment an operator can hold us to: which device
+    answers, what happens when it cannot speak, and what happens when it can do
+    neither. Silently promising an answer that never arrives is the failure
+    this release exists to end (casa-ha-app #233/#224).
+    """
+    text = _normalized(filename)
+
+    assert "delivered to the device that asked" in text
+    assert "announce-capable Assist satellite" in text
+    assert "notify" in text
+    assert "is not promised a deferred answer at all" in text
+    assert "two announce-capable satellites" in text
+    assert "re-resolves the endpoint" in text
+
+
+@pytest.mark.parametrize("filename", ["README.md", "info.md"])
+def test_no_stale_protocol_numbers_survive_in_the_docs(filename):
+    """Positive assertions alone let contradictions through.
+
+    Both docs previously asserted "WebSocket protocol 3" in one paragraph while
+    still calling the same thing a "protocol-2 route" two sections down. During
+    a coordinated upgrade that ambiguity is what an operator acts on, so the
+    obsolete phrasings are named and forbidden.
+
+    Two protocol numbers are live at once and are NOT the same counter:
+    route registration is 3; background delivery and the hand-off receipt are 2.
+    """
+    text = _normalized(filename)
+
+    assert "protocol-2 route" not in text
+    assert "protocol-2 voice-handoff" not in text
+    assert "Protocol 1 or" not in text
+    assert "protocol-1 routes" not in text
+    assert "satellite_announce" not in text

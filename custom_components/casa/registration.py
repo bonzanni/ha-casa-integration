@@ -15,7 +15,17 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import TrackStates, async_track_state_change_filtered
 
+from .capability import ANNOUNCE_FEATURE
 from .delivery import SatelliteDirectory
+
+
+def _can_announce(state: Any) -> bool:
+    """Whether this satellite advertises AssistSatelliteEntityFeature.ANNOUNCE."""
+    try:
+        features = int(getattr(state, "attributes", {}).get("supported_features") or 0)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return bool(features & ANNOUNCE_FEATURE)
 
 
 class SessionRegistrationListener:
@@ -111,6 +121,16 @@ class SessionRegistrationListener:
         registry = er.async_get(self._hass)
         entry = registry.async_get(entity_id)
         if entry is None or entry.device_id is None:
+            self._directory.remove(entity_id)
+            return None
+        # Only announce-capable satellites belong here. The directory is the
+        # DELIVERY-side view of a device, and the offer side already refuses to
+        # promise audio on anything that cannot announce. If the two disagreed,
+        # a second non-announcing satellite on the same device would make
+        # delivery ambiguous for a job the offer had happily promised — a
+        # promise refused at delivery time, which is the failure this whole
+        # release removes.
+        if not _can_announce(state):
             self._directory.remove(entity_id)
             return None
         changed = getattr(state, "last_changed", None)

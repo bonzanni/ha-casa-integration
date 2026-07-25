@@ -20,6 +20,7 @@ from .catalog import (
     parse_voice_agent_catalog,
 )
 from .const import (
+    DELIVERY_OFFER_PROTOCOL,
     HANDOFF_PROTOCOL,
     HEALTH_PATH,
     SSE_PATH,
@@ -123,7 +124,14 @@ class CasaApiClient:
         port: int,
         webhook_secret: str,
         state_callback: Callable[[ConnectionState], None] | None = None,
+        delivery_resolver: Callable[[str], dict | None] | None = None,
     ) -> None:
+        # Resolves, PER UTTERANCE, how the ORIGINATING device can receive a
+        # deferred answer. Casa must know this BEFORE it promises one: route
+        # capabilities describe the connection, not the device that asked, so
+        # advertising them per-route made Casa promise spoken answers to
+        # devices that can only show a notification (casa-ha-app #233/#224).
+        self._delivery_resolver = delivery_resolver
         self._session = session
         self._base_url = f"http://{host}:{port}"
         self._ws_url = f"ws://{host}:{port}{WS_PATH}"
@@ -573,6 +581,31 @@ class CasaApiClient:
             self._route_ack_generation = generation
             self._route_ack.set()
 
+    def _resolve_delivery_offer(self, device_id: str) -> dict | None:
+        """How THIS device can receive a deferred answer, or None.
+
+        Shape (generic on purpose — Casa must not learn HA entity types):
+            {"protocol": 3, "modality": "audio"|"text",
+             "receipt": "playback_complete"|"accepted"}
+        """
+        if self._delivery_resolver is None:
+            return None
+        try:
+            offer = self._delivery_resolver(device_id)
+        except Exception:  # noqa: BLE001 - never fail a turn on capability probing
+            _LOGGER.exception("Casa delivery capability probe failed")
+            return None
+        if not isinstance(offer, dict):
+            return None
+        modality = offer.get("modality")
+        if modality not in ("audio", "text"):
+            return None
+        return {
+            "protocol": DELIVERY_OFFER_PROTOCOL,
+            "modality": modality,
+            "receipt": offer.get("receipt") or "accepted",
+        }
+
     async def _stream_utterance_ws(
         self, *, text, agent_role, scope_id, utterance_id, context,
     ) -> AsyncIterator[Any]:
@@ -598,6 +631,9 @@ class CasaApiClient:
                 and len(device_id) <= 512
             ):
                 utterance["device_id"] = device_id
+                offer = self._resolve_delivery_offer(device_id)
+                if offer is not None:
+                    utterance["delivery_offer"] = offer
             await self._send_json(utterance, ws=ws, generation=generation)
             while True:
                 frame = await queue.get()
