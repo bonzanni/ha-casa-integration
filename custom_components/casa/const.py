@@ -45,6 +45,10 @@ TIMEOUT_HEALTH = 5
 WS_RECONNECT_MIN = 1
 WS_RECONNECT_MAX = 30
 VOICE_ROUTE_PROTOCOL = 2
+# Concierge specialist hand-off receipt protocol. Casa refuses a
+# `handoff_received` receipt that omits it (and the job id), which leaves the
+# hand-off pending and the finished answer unspoken (casa-ha-app #233/#224).
+HANDOFF_PROTOCOL = 2
 VOICE_ROUTE_CAPABILITIES = (
     "background_jobs", "satellite_announce", "voice_handoff",
 )

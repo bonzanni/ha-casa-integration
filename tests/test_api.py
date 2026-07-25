@@ -459,8 +459,10 @@ class TestStreamUtteranceWS:
         await _wait_until(lambda: any(frame.get("type") == "utterance" for frame in ws.sent))
         ws.feed_json({
             "type": "handoff",
+            "protocol": 2,
             "utterance_id": "u-1",
             "handoff_id": "handoff-1",
+            "job_id": "job-1",
             "text": "I will look into that.",
         })
 
@@ -468,10 +470,16 @@ class TestStreamUtteranceWS:
 
         assert frames == [HandoffFrame(
             handoff_id="handoff-1", text="I will look into that.",
+            job_id="job-1",
         )]
+        # Casa REFUSES a receipt without protocol+job_id: the hand-off then
+        # stays PENDING and the specialist's answer expires unspoken
+        # (casa-ha-app #233/#224). Pin the full shape.
         assert [frame for frame in ws.sent if frame.get("type") == "handoff_received"] == [{
             "type": "handoff_received",
+            "protocol": 2,
             "handoff_id": "handoff-1",
+            "job_id": "job-1",
         }]
         assert not any(frame.get("type") == "cancel" for frame in ws.sent)
         await client.close()
@@ -490,8 +498,10 @@ class TestStreamUtteranceWS:
             )
             ws.feed_json({
                 "type": "handoff",
+                "protocol": 2,
                 "utterance_id": "u-1",
                 "handoff_id": "handoff-1",
+                "job_id": "job-1",
                 "text": "I will look into that.",
             })
 
@@ -512,13 +522,15 @@ class TestStreamUtteranceWS:
             )
             ws.feed_json({
                 "type": "handoff",
+                "protocol": 2,
                 "utterance_id": "u-2",
                 "handoff_id": "handoff-2",
+                "job_id": "job-2",
                 "text": "I will try again.",
             })
 
             assert await reoffer == [HandoffFrame(
-                handoff_id="handoff-2",
+                handoff_id="handoff-2", job_id="job-2",
                 text="I will try again.",
             )]
         finally:
@@ -569,10 +581,13 @@ class TestStreamUtteranceWS:
                 "handoff_id": "handoff-2",
                 "text": canary,
             })
+            # The one VALID frame — carries protocol + job_id like real Casa.
             ws.feed_json({
                 "type": "handoff",
+                "protocol": 2,
                 "utterance_id": "u-1",
                 "handoff_id": "handoff-3",
+                "job_id": "job-3",
                 "text": "I will look into that.",
             })
 
@@ -580,10 +595,13 @@ class TestStreamUtteranceWS:
 
         assert frames == [HandoffFrame(
             handoff_id="handoff-3", text="I will look into that.",
+            job_id="job-3",
         )]
         assert [frame for frame in ws.sent if frame.get("type") == "handoff_received"] == [{
             "type": "handoff_received",
+            "protocol": 2,
             "handoff_id": "handoff-3",
+            "job_id": "job-3",
         }]
         assert canary not in caplog.text
         await client.close()
