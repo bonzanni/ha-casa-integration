@@ -36,6 +36,7 @@ from .const import (
     TRANSPORT_SSE,
     TRANSPORT_WS,
 )
+from .capability import resolve_endpoint
 from .delivery import BackgroundDeliveryManager, SatelliteDirectory
 from .registration import SessionRegistrationListener
 
@@ -347,6 +348,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     child,
                     state,
                 ),
+                # Capability is a property of the ENDPOINT that asked, not of
+                # this shared WebSocket — resolved per utterance so Casa only
+                # ever promises what that device can actually receive.
+                delivery_resolver=lambda device_id: resolve_endpoint(
+                    hass, device_id, overrides=_configured_overrides(entry),
+                ),
             )
             runtime.client = client
             runtime.manager = BackgroundDeliveryManager(
@@ -355,6 +362,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 route_id=runtime.route_id,
                 directory=directory,
                 idle_stability_ms=runtime.idle_stability_ms,
+                # Re-resolved at DELIVERY time, and scoped to the modality the
+                # job was promised: the device may have changed in the minute
+                # since, and a satellite that appeared meanwhile must not
+                # capture an answer promised as a notification.
+                endpoint_resolver=lambda device_id, modality: resolve_endpoint(
+                    hass, device_id, modality=modality,
+                    overrides=_configured_overrides(entry),
+                ),
             )
 
         for runtime in agents.values():

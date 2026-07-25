@@ -169,6 +169,7 @@ class _ManagerHarness:
         route_id,
         directory,
         idle_stability_ms,
+        endpoint_resolver=None,
     ):
         manager = MagicMock()
         manager.handle_frame = AsyncMock()
@@ -180,6 +181,7 @@ class _ManagerHarness:
             "route_id": route_id,
             "directory": directory,
             "idle_stability_ms": idle_stability_ms,
+            "endpoint_resolver": endpoint_resolver,
         })
         return manager
 
@@ -378,6 +380,19 @@ class TestParentSetup:
         }
         assert all(call["directory"] is runtime.directory for call in managers.calls)
         assert {call["client"] for call in managers.calls} == set(clients.children)
+
+        # Every manager can re-resolve the endpoint at delivery time, scoped to
+        # the modality the job was promised. Without this a text job has no way
+        # to find the phone and the answer is dropped (casa-ha-app #233/#224).
+        with patch(
+            "custom_components.casa.resolve_endpoint",
+            return_value={"entity_id": "notify.phone", "modality": "text"},
+        ) as resolver:
+            for call in managers.calls:
+                assert call["endpoint_resolver"]("dev-1", "text") == {
+                    "entity_id": "notify.phone", "modality": "text",
+                }
+            assert resolver.call_args.kwargs["modality"] == "text"
 
         listener_cls.assert_called_once_with(
             hass,

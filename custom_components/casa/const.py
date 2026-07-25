@@ -44,13 +44,21 @@ TIMEOUT_TOTAL = 30
 TIMEOUT_HEALTH = 5
 WS_RECONNECT_MIN = 1
 WS_RECONNECT_MAX = 30
-VOICE_ROUTE_PROTOCOL = 2
+VOICE_ROUTE_PROTOCOL = 3
 # Concierge specialist hand-off receipt protocol. Casa refuses a
 # `handoff_received` receipt that omits it (and the job id), which leaves the
 # hand-off pending and the finished answer unspoken (casa-ha-app #233/#224).
 HANDOFF_PROTOCOL = 2
+# Per-utterance delivery offer: tells Casa how the ORIGINATING device can
+# receive a deferred answer, so the spoken promise matches what will actually
+# happen. Route capabilities describe the connection, not the device.
+DELIVERY_OFFER_PROTOCOL = 3
 VOICE_ROUTE_CAPABILITIES = (
-    "background_jobs", "satellite_announce", "voice_handoff",
+    # `satellite_announce` is gone (route protocol 3): it asserted a DEVICE
+    # fact on a socket shared by every device on this Home Assistant.
+    # `endpoint_delivery` asserts a CLIENT fact — this integration resolves a
+    # per-utterance endpoint offer and honours the modality Casa selects.
+    "background_jobs", "endpoint_delivery", "voice_handoff",
 )
 VOICE_AGENT_CATALOG_SCHEMA_VERSION = 1
 MAX_VOICE_AGENTS = 20

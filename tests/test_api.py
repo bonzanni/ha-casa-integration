@@ -418,6 +418,7 @@ async def _collect_ws_utterance(
     client: CasaApiClient,
     *,
     utterance_id: str = "u-1",
+    context: dict | None = None,
 ) -> list:
     return [
         frame
@@ -426,7 +427,7 @@ async def _collect_ws_utterance(
             agent_role="concierge",
             scope_id="dev-1",
             utterance_id=utterance_id,
-            context={},
+            context={} if context is None else context,
             transport="ws",
         )
     ]
@@ -1410,11 +1411,11 @@ class TestBackgroundDelivery:
 
         assert ws.sent[0] == {
             "type": "voice_route_register",
-            "protocol": 2,
+            "protocol": 3,
             "route_id": "entry-1",
             "agent_role": "concierge",
             "capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         }
         await client.close()
@@ -1438,11 +1439,11 @@ class TestBackgroundDelivery:
         assert session.ws_connect.await_count == 1
         assert ws.sent == [{
             "type": "voice_route_register",
-            "protocol": 2,
+            "protocol": 3,
             "route_id": "entry-1",
             "agent_role": "concierge",
             "capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         }]
         await client.close()
@@ -1485,11 +1486,11 @@ class TestBackgroundDelivery:
             await _wait_until(lambda: client.connected)
             assert second.sent == [{
                 "type": "voice_route_register",
-                "protocol": 2,
+                "protocol": 3,
                 "route_id": "entry-1",
                 "agent_role": "concierge",
                 "capabilities": [
-                    "background_jobs", "satellite_announce", "voice_handoff",
+                    "background_jobs", "endpoint_delivery", "voice_handoff",
                 ],
             }]
             assert states == [
@@ -1536,11 +1537,11 @@ class TestBackgroundDelivery:
             assert supervisor.done() is False
             assert second.sent == [{
                 "type": "voice_route_register",
-                "protocol": 2,
+                "protocol": 3,
                 "route_id": "entry-1",
                 "agent_role": "concierge",
                 "capabilities": [
-                    "background_jobs", "satellite_announce", "voice_handoff",
+                    "background_jobs", "endpoint_delivery", "voice_handoff",
                 ],
             }]
             assert states == [
@@ -1599,11 +1600,11 @@ class TestBackgroundDelivery:
 
             assert ws.sent == [{
                 "type": "voice_route_register",
-                "protocol": 2,
+                "protocol": 3,
                 "route_id": "entry-1",
                 "agent_role": "concierge",
                 "capabilities": [
-                    "background_jobs", "satellite_announce", "voice_handoff",
+                    "background_jobs", "endpoint_delivery", "voice_handoff",
                 ],
             }]
         finally:
@@ -1616,9 +1617,9 @@ class TestBackgroundDelivery:
             (
                 {
                     "type": "voice_route_registered",
-                    "protocol": 2,
+                    "protocol": 3,
                     "accepted_capabilities": [
-                        "background_jobs", "satellite_announce", "voice_handoff",
+                        "background_jobs", "endpoint_delivery", "voice_handoff",
                     ],
                 },
                 True,
@@ -1628,7 +1629,7 @@ class TestBackgroundDelivery:
                     "type": "voice_route_registered",
                     "protocol": "1",
                     "accepted_capabilities": [
-                        "background_jobs", "satellite_announce", "voice_handoff",
+                        "background_jobs", "endpoint_delivery", "voice_handoff",
                     ],
                 },
                 False,
@@ -1636,7 +1637,7 @@ class TestBackgroundDelivery:
             (
                 {
                     "type": "voice_route_registered",
-                    "protocol": 2,
+                    "protocol": 3,
                     "accepted_capabilities": ["background_jobs"],
                 },
                 False,
@@ -1672,9 +1673,9 @@ class TestBackgroundDelivery:
         )
         ws.feed_json({
             "type": "voice_route_registered",
-            "protocol": 2,
+            "protocol": 3,
             "accepted_capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         })
         await _wait_until(lambda: client.background_capable)
@@ -1724,14 +1725,14 @@ class TestBackgroundDelivery:
         client = CasaApiClient(session=session, host="h", port=1, webhook_secret="sec")
         ack = {
             "type": "voice_route_registered",
-            "protocol": 2,
+            "protocol": 3,
             "accepted_capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         }
         old_job = {
             "type": "job_ready",
-            "protocol": 2,
+            "protocol": 3,
             "job_id": "job-old-generation",
             "delivery_attempt_id": "attempt-old-generation",
         }
@@ -1787,9 +1788,9 @@ class TestBackgroundDelivery:
         )
         ws.feed_json({
             "type": "voice_route_registered",
-            "protocol": 2,
+            "protocol": 3,
             "accepted_capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         })
         await _wait_until(lambda: client.background_capable)
@@ -1843,9 +1844,9 @@ class TestBackgroundDelivery:
         )
         ws.feed_json({
             "type": "voice_route_registered",
-            "protocol": 2,
+            "protocol": 3,
             "accepted_capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         })
         await _wait_until(lambda: client.background_capable)
@@ -2002,9 +2003,9 @@ class TestBackgroundDelivery:
         )
         ws.feed_json({
             "type": "voice_route_registered",
-            "protocol": 2,
+            "protocol": 3,
             "accepted_capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         })
         await _wait_until(lambda: client.background_capable)
@@ -2068,9 +2069,9 @@ class TestBackgroundDelivery:
             )
             first.feed_json({
                 "type": "voice_route_registered",
-                "protocol": 2,
+                "protocol": 3,
                 "accepted_capabilities": [
-                    "background_jobs", "satellite_announce", "voice_handoff",
+                    "background_jobs", "endpoint_delivery", "voice_handoff",
                 ],
             })
             await _wait_until(lambda: client.background_capable)
@@ -2096,9 +2097,9 @@ class TestBackgroundDelivery:
 
             second.feed_json({
                 "type": "voice_route_registered",
-                "protocol": 2,
+                "protocol": 3,
                 "accepted_capabilities": [
-                    "background_jobs", "satellite_announce", "voice_handoff",
+                    "background_jobs", "endpoint_delivery", "voice_handoff",
                 ],
             })
             await _wait_until(lambda: client.background_capable)
@@ -2107,11 +2108,11 @@ class TestBackgroundDelivery:
             assert second.sent == [
                 {
                     "type": "voice_route_register",
-                    "protocol": 2,
+                    "protocol": 3,
                     "route_id": "entry-1",
                     "agent_role": "concierge",
                     "capabilities": [
-                        "background_jobs", "satellite_announce", "voice_handoff",
+                        "background_jobs", "endpoint_delivery", "voice_handoff",
                     ],
                 },
                 frame,
@@ -2265,9 +2266,9 @@ class TestBackgroundDelivery:
         )
         ws.feed_json({
             "type": "voice_route_registered",
-            "protocol": 2,
+            "protocol": 3,
             "accepted_capabilities": [
-                "background_jobs", "satellite_announce", "voice_handoff",
+                "background_jobs", "endpoint_delivery", "voice_handoff",
             ],
         })
         await _wait_until(lambda: client.background_capable)
@@ -2306,3 +2307,64 @@ class TestBackgroundDelivery:
 
         assert session.ws_connect.await_count == 2
         assert client._ws_supervisor is None
+
+
+@pytest.mark.asyncio
+class TestPerUtteranceDeliveryOffer:
+    """Casa must know what the ASKING device can do BEFORE it promises.
+
+    Route capabilities describe this shared WebSocket, not the device, which is
+    how Casa came to promise a spoken answer to a phone with no speaker and
+    then discard the finished answer (casa-ha-app #233/#224).
+    """
+
+    async def _frame_for(self, resolver, ws):
+        session = MagicMock()
+        session.ws_connect = AsyncMock(return_value=ws)
+        client = CasaApiClient(
+            session=session, host="h", port=1, webhook_secret="sec",
+            delivery_resolver=resolver,
+        )
+        task = asyncio.create_task(
+            _collect_ws_utterance(client, context={"device_id": "dev-1"}))
+        await _wait_until(
+            lambda: any(f.get("type") == "utterance" for f in ws.sent))
+        frame = next(f for f in ws.sent if f.get("type") == "utterance")
+        task.cancel()
+        await client.close()
+        return frame
+
+    async def test_audio_endpoint_offer_is_attached(self):
+        frame = await self._frame_for(
+            lambda did: {"modality": "audio", "receipt": "playback_complete",
+                         "entity_id": "assist_satellite.kitchen"},
+            _FakeWS(stay_open=True))
+        assert frame["delivery_offer"] == {
+            "protocol": 3, "modality": "audio", "receipt": "playback_complete",
+        }
+
+    async def test_entity_ids_never_reach_casa(self):
+        """Casa stays generic: it must not learn HA entity types or ids."""
+        frame = await self._frame_for(
+            lambda did: {"modality": "text", "receipt": "accepted",
+                         "entity_id": "notify.mobile_app_secret_name"},
+            _FakeWS(stay_open=True))
+        assert "entity_id" not in frame["delivery_offer"]
+        assert "notify" not in str(frame["delivery_offer"])
+
+    async def test_no_offer_when_the_device_cannot_receive(self):
+        """The iPhone-with-no-satellite case: promise nothing."""
+        frame = await self._frame_for(lambda did: None, _FakeWS(stay_open=True))
+        assert "delivery_offer" not in frame
+
+    async def test_resolver_failure_degrades_it_never_breaks_the_turn(self):
+        def boom(device_id):
+            raise RuntimeError("registry down")
+        frame = await self._frame_for(boom, _FakeWS(stay_open=True))
+        assert "delivery_offer" not in frame
+        assert frame["type"] == "utterance"
+
+    async def test_bogus_modality_is_dropped(self):
+        frame = await self._frame_for(
+            lambda did: {"modality": "hologram"}, _FakeWS(stay_open=True))
+        assert "delivery_offer" not in frame

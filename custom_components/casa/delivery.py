@@ -14,11 +14,18 @@ from typing import Any
 
 
 _LOGGER = logging.getLogger(__name__)
-_PROTOCOL = 1
+# 2 adds `delivery_modality` to `job_ready` (casa-ha-app #233/#224). The bump
+# is deliberate rather than a tolerant read: a v1 Casa never chose an endpoint,
+# so acting on its frames would mean guessing, and guessing is the bug.
+_PROTOCOL = 2
 _LEASE_RENEW_SECONDS = 5.0
 _AUTHORIZATION_TIMEOUT_SECONDS = 10.0
 _DELIVERED_LRU_SIZE = 256
 _ASSIST_BUSY_STATES = frozenset({"listening", "processing", "responding"})
+
+AUDIO = "audio"
+TEXT = "text"
+_MODALITIES = frozenset({AUDIO, TEXT})
 
 
 class _SystemClock:
@@ -37,6 +44,7 @@ class _Delivery:
     device_id: str
     entity_id: str
     spoken_text: str
+    modality: str
     expires_at: float
     sequence: int
     revoked: asyncio.Event
@@ -216,6 +224,7 @@ class BackgroundDeliveryManager:
         directory: SatelliteDirectory,
         idle_stability_ms: int = 750,
         clock: Any | None = None,
+        endpoint_resolver: Any | None = None,
     ) -> None:
         if type(idle_stability_ms) is not int or not 0 <= idle_stability_ms <= 5000:
             raise ValueError("idle stability must be between 0 and 5000 ms")
@@ -223,6 +232,10 @@ class BackgroundDeliveryManager:
         self.client = client
         self.route_id = route_id
         self.directory = directory
+        # (device_id, modality) -> {"entity_id": ...} | None. Text endpoints are
+        # resolved at DELIVERY time, not when the offer was made: the phone that
+        # asked may have been removed in the minute since.
+        self._endpoint_resolver = endpoint_resolver
         self._idle_stability_s = idle_stability_ms / 1000
         self._clock = clock or _SystemClock()
         self._queues: dict[str, asyncio.Queue[_Delivery]] = {}
@@ -245,7 +258,7 @@ class BackgroundDeliveryManager:
             key = (delivery.job_id, delivery.attempt_id)
             if key in self._attempts:
                 return
-            if delivery.job_id not in self._delivered:
+            if delivery.job_id not in self._delivered and delivery.modality == AUDIO:
                 try:
                     delivery.entity_id = self.directory.resolve(delivery.device_id)
                 except SatelliteAmbiguous:
@@ -298,6 +311,13 @@ class BackgroundDeliveryManager:
             return None
         if not isinstance(spoken_text, str) or not spoken_text:
             return None
+        modality = frame.get("delivery_modality")
+        if modality not in _MODALITIES:
+            # Fail closed. A job with no recorded promise is not deliverable:
+            # announcing it in a room it was never promised to is the original
+            # bug in reverse. Letting it expire is the safe outcome.
+            _LOGGER.debug("Casa background frame refused reason=no_modality")
+            return None
         if (
             isinstance(ready_at, bool)
             or not isinstance(ready_at, (int, float))
@@ -325,6 +345,7 @@ class BackgroundDeliveryManager:
             device_id=device_id,
             entity_id="",
             spoken_text=spoken_text,
+            modality=modality,
             expires_at=expires_at_float,
             sequence=sequence,
             revoked=asyncio.Event(),
@@ -373,24 +394,39 @@ class BackgroundDeliveryManager:
             await self._send(self._frame(delivery, "job_delivered"))
             return
 
+        if delivery.modality == TEXT:
+            # Resolved here rather than when the frame arrived: a text job can
+            # sit behind an audio one that is waiting for the room to go quiet,
+            # so minutes may pass, and the phone may be gone by now. Nacking
+            # before the claim mirrors how a missing satellite is handled.
+            entity_id = self._resolve_text_endpoint(delivery.device_id)
+            if entity_id is None:
+                await self._nack(delivery, "no_text_endpoint")
+                return
+            delivery.entity_id = entity_id
+
         delivery.phase = "claimed"
         await self._send(self._frame(delivery, "job_claimed"))
         renewer = asyncio.create_task(self._renew_claim(delivery))
         try:
-            async with self.directory.playback_slot(delivery.device_id):
-                await self._deliver_in_playback_slot(delivery)
+            if delivery.modality == TEXT:
+                # No playback slot and no idle wait: those exist to keep two
+                # announcements out of the same room, and a notification does
+                # not occupy the room at all.
+                await self._deliver_as_text(delivery)
+            else:
+                async with self.directory.playback_slot(delivery.device_id):
+                    await self._deliver_in_playback_slot(delivery)
         finally:
             renewer.cancel()
             await asyncio.gather(renewer, return_exceptions=True)
 
-    async def _deliver_in_playback_slot(self, delivery: _Delivery) -> None:
-        """Wait, authorize, and announce while holding the shared device slot."""
-        if not await self._wait_for_stable_idle(delivery):
-            await self._abort_idle_wait(delivery)
-            return
-        if not self._has_current_stable_idle_claim(delivery):
-            await self._abort_preplay(delivery)
-            return
+    async def _authorize(self, delivery: _Delivery) -> bool:
+        """Ask Casa to authorize this attempt and report whether it did.
+
+        Shared by both modalities so that a revoke, a lost lease, and a silent
+        Casa produce the same outcome whichever way the answer is going out.
+        """
         key = (delivery.job_id, delivery.attempt_id)
         authorization = asyncio.get_running_loop().create_future()
         self._authorization[key] = authorization
@@ -400,15 +436,63 @@ class BackgroundDeliveryManager:
             authorized = await self._wait_authorization(delivery, authorization)
         finally:
             self._authorization.pop(key, None)
-        if not authorized:
-            if delivery.lease_lost.is_set():
-                return
-            if delivery.revoked.is_set():
-                await self._ack_revoked(delivery)
-            else:
-                await self._nack(delivery, "authorization_timeout")
+        if authorized:
+            delivery.phase = "authorized"
+            return True
+        if delivery.lease_lost.is_set():
+            return False
+        if delivery.revoked.is_set():
+            await self._ack_revoked(delivery)
+        else:
+            await self._nack(delivery, "authorization_timeout")
+        return False
+
+    async def _deliver_as_text(self, delivery: _Delivery) -> None:
+        """Notify the asking device, through the same authorization sequence.
+
+        Casa's registry only accepts `job_delivered` from a claimed and
+        authorized attempt, and treats `job_playback_started` as the point of
+        no return. Text delivery is not exempt from that: skipping the
+        handshake would let a notification be sent for a job Casa had already
+        revoked. Only the room-physical steps are dropped.
+        """
+        if not await self._authorize(delivery):
             return
-        delivery.phase = "authorized"
+        await self._send(self._frame(delivery, "job_playback_started"))
+        delivery.phase = "playing"
+        await self.hass.services.async_call(
+            "notify",
+            "send_message",
+            {"entity_id": delivery.entity_id, "message": delivery.spoken_text},
+            blocking=True,
+        )
+        _LOGGER.debug("Casa background notify state=complete")
+        self._remember_delivered(delivery.job_id)
+        await self._send(self._frame(delivery, "job_delivered"))
+
+    def _resolve_text_endpoint(self, device_id: str) -> str | None:
+        if self._endpoint_resolver is None:
+            return None
+        try:
+            endpoint = self._endpoint_resolver(device_id, TEXT)
+        except Exception:  # noqa: BLE001 - a probe failure is "cannot deliver"
+            _LOGGER.exception("Casa text endpoint lookup failed")
+            return None
+        if not isinstance(endpoint, dict):
+            return None
+        entity_id = endpoint.get("entity_id")
+        return entity_id if isinstance(entity_id, str) and entity_id else None
+
+    async def _deliver_in_playback_slot(self, delivery: _Delivery) -> None:
+        """Wait, authorize, and announce while holding the shared device slot."""
+        if not await self._wait_for_stable_idle(delivery):
+            await self._abort_idle_wait(delivery)
+            return
+        if not self._has_current_stable_idle_claim(delivery):
+            await self._abort_preplay(delivery)
+            return
+        if not await self._authorize(delivery):
+            return
         if not self._has_current_stable_idle_claim(delivery):
             await self._abort_preplay(delivery)
             return
