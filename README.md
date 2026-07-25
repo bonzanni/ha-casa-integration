@@ -77,7 +77,7 @@ connection on a trusted LAN, private network, or encrypted tunnel.
 ## Install and configure
 
 1. Upgrade Casa to v0.121.0, which includes the authenticated agent catalog and
-   the coordinated protocol-2 voice-handoff contract.
+   the coordinated voice-handoff contract (route registration protocol 3).
 2. In HACS, open **Integrations** → **⋮** → **Custom repositories**.
 3. Add `https://github.com/bonzanni/casa-ha-integration` with category
    **Integration**.
@@ -154,11 +154,11 @@ delivery manager, availability state, and cleanup boundary. Only the satellite
 directory and state listener are shared. A disconnected, missing, or failing
 child does not change another child's availability or routing.
 
-With WebSocket transport, each agent registers a protocol-2 route and
+With WebSocket transport, each agent registers a route-registration protocol 3 route and
 advertises the complete `background_jobs`, `endpoint_delivery`, and
 `voice_handoff` capability set. Concierge handoff is enabled only after Casa
-acknowledges every capability on that exact socket generation. Protocol 1 or an
-incomplete registration fails closed before Casa creates the specialist job;
+acknowledges every capability on that exact socket generation. An older
+route protocol or an incomplete registration fails closed before Casa creates the specialist job;
 there is no legacy handoff fallback. A role using SSE remains available for
 synchronous turns without a persistent socket.
 

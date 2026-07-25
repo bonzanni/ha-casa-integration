@@ -460,12 +460,23 @@ class BackgroundDeliveryManager:
             return
         await self._send(self._frame(delivery, "job_playback_started"))
         delivery.phase = "playing"
-        await self.hass.services.async_call(
-            "notify",
-            "send_message",
-            {"entity_id": delivery.entity_id, "message": delivery.spoken_text},
-            blocking=True,
-        )
+        try:
+            await self.hass.services.async_call(
+                "notify",
+                "send_message",
+                {"entity_id": delivery.entity_id, "message": delivery.spoken_text},
+                blocking=True,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - the message itself must stay out of logs
+            # Deliberately NOT acknowledged: the answer did not go out, so
+            # claiming it did would lose it for good. Casa holds the attempt in
+            # PLAYING and its lease recovery decides whether to reoffer. What
+            # matters here is that the device worker survives to serve the next
+            # job.
+            _LOGGER.warning("Casa background notify failed reason=service_error")
+            return
         _LOGGER.debug("Casa background notify state=complete")
         self._remember_delivered(delivery.job_id)
         await self._send(self._frame(delivery, "job_delivered"))

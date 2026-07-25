@@ -157,3 +157,11 @@ class TestRobustness:
         st.attributes = {"supported_features": "three"}
         hass = _wire(monkeypatch, entries, {"assist_satellite.kitchen": st})
         assert resolve_endpoint(hass, "dev-9") is None
+
+
+class TestStalenessAndDrift:
+    def test_a_registry_row_without_a_state_is_not_offered(self, monkeypatch):
+        """The entity is registered but not loaded — it cannot be notified."""
+        entries = [_entry("notify", "notify.mobile_app_phone")]
+        hass = _wire(monkeypatch, entries, {})
+        assert resolve_endpoint(hass, "dev-2") is None

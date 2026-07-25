@@ -1522,3 +1522,46 @@ class TestModalityContract:
         await clock.settle()
 
         assert manager.client.sent == []
+
+
+class TestTextDeliveryFailure:
+    async def test_a_failed_notification_is_not_acknowledged_as_delivered(
+        self, delivery_manager,
+    ):
+        """Never claim an answer went out when it did not.
+
+        `job_delivered` is what lets Casa retire the job. Sending it after a
+        failed push would discard the answer permanently — the same silent loss
+        this release exists to end, just one step further along.
+        """
+        manager, clock = delivery_manager
+        manager.hass.services.async_call = AsyncMock(
+            side_effect=RuntimeError("notify platform down"))
+
+        await manager.handle_frame(
+            job_ready("job-t", delivery_modality="text"))
+        await clock.settle()
+
+        assert "job_delivered" not in sent_types(manager.client)
+        assert sent_types(manager.client)[-1] == "job_playback_started"
+
+    async def test_the_device_worker_survives_a_failed_notification(
+        self, delivery_manager,
+    ):
+        """One bad push must not take out delivery for that device."""
+        manager, clock = delivery_manager
+        manager.hass.services.async_call = AsyncMock(
+            side_effect=[RuntimeError("transient"), None])
+
+        await manager.handle_frame(
+            job_ready("job-a", delivery_modality="text"))
+        await clock.settle()
+        await manager.handle_frame(
+            job_ready("job-b", delivery_modality="text"))
+        await clock.settle()
+
+        delivered = [
+            frame for frame in manager.client.sent
+            if frame["type"] == "job_delivered"
+        ]
+        assert [frame["job_id"] for frame in delivered] == ["job-b"]

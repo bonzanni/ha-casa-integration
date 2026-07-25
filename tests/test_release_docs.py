@@ -164,3 +164,24 @@ def test_deferred_delivery_endpoint_rules_are_explicit(filename):
     assert "is not promised a deferred answer at all" in text
     assert "two announce-capable satellites" in text
     assert "re-resolves the endpoint" in text
+
+
+@pytest.mark.parametrize("filename", ["README.md", "info.md"])
+def test_no_stale_protocol_numbers_survive_in_the_docs(filename):
+    """Positive assertions alone let contradictions through.
+
+    Both docs previously asserted "WebSocket protocol 3" in one paragraph while
+    still calling the same thing a "protocol-2 route" two sections down. During
+    a coordinated upgrade that ambiguity is what an operator acts on, so the
+    obsolete phrasings are named and forbidden.
+
+    Two protocol numbers are live at once and are NOT the same counter:
+    route registration is 3; background delivery and the hand-off receipt are 2.
+    """
+    text = _normalized(filename)
+
+    assert "protocol-2 route" not in text
+    assert "protocol-2 voice-handoff" not in text
+    assert "Protocol 1 or" not in text
+    assert "protocol-1 routes" not in text
+    assert "satellite_announce" not in text

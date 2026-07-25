@@ -95,7 +95,11 @@ def resolve_endpoint(
             if entry.domain != "notify":
                 continue
             state = hass.states.get(entry.entity_id)
-            if state is not None and state.state in _NOTIFY_UNUSABLE:
+            # A registry row can outlive its entity: the platform may be
+            # unloaded, or the entity not yet added to the state machine. It
+            # would then look deliverable here and fail at the service call,
+            # after Casa has already been told the answer is going out.
+            if state is None or state.state in _NOTIFY_UNUSABLE:
                 continue
             return {
                 "modality": TEXT,

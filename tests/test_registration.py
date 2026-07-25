@@ -18,11 +18,15 @@ def _state(
     *,
     domain: str = "assist_satellite",
     changed_at: float = 100.0,
+    # 3 = ANNOUNCE|START_CONVERSATION, what a Home Assistant Voice satellite
+    # reports live. The directory only tracks satellites that can announce.
+    supported_features: int = 3,
 ):
     return SimpleNamespace(
         entity_id=entity_id,
         state=state,
         domain=domain,
+        attributes={"supported_features": supported_features},
         last_changed=datetime.fromtimestamp(changed_at, timezone.utc),
     )
 
@@ -34,10 +38,12 @@ def _state_change_event(
     *,
     old_state_state: str | None = "idle",
     changed_at: float = 100.0,
+    supported_features: int = 3,
 ):
     ev = MagicMock()
     new = (
-        _state(entity_id, new_state_state, domain=domain, changed_at=changed_at)
+        _state(entity_id, new_state_state, domain=domain, changed_at=changed_at,
+               supported_features=supported_features)
         if new_state_state is not None
         else None
     )
@@ -216,6 +222,50 @@ class TestSessionRegistrationListener:
         on_listening.assert_not_called()
         assert directory.state("dev-kitchen") == "processing"
         assert registry.async_get.call_count == 2
+
+    def test_a_satellite_that_cannot_announce_is_not_tracked(self):
+        """One definition of "can this device be answered aloud".
+
+        The offer side refuses to promise audio on a satellite without
+        ANNOUNCE. If the delivery-side directory tracked it anyway, a device
+        carrying both kinds would look unambiguous when the promise was made
+        and ambiguous when the answer arrived — a promise refused at delivery,
+        which is exactly the failure this release removes (casa-ha-app
+        #233/#224).
+        """
+        hass = MagicMock()
+        directory = SatelliteDirectory()
+
+        from homeassistant.helpers import entity_registry as er
+        registry = MagicMock()
+        registry.async_get = MagicMock(return_value=MagicMock(device_id="dev-k"))
+        er.async_get = MagicMock(return_value=registry)
+
+        listener = _listener(hass, MagicMock(), directory=directory)
+        # 2 = START_CONVERSATION only.
+        listener.handle(_state_change_event(
+            "assist_satellite.mute", "idle", supported_features=2))
+
+        with pytest.raises(SatelliteNotFound):
+            directory.resolve("dev-k")
+
+    def test_losing_announce_support_removes_a_tracked_satellite(self):
+        hass = MagicMock()
+        directory = SatelliteDirectory()
+
+        from homeassistant.helpers import entity_registry as er
+        registry = MagicMock()
+        registry.async_get = MagicMock(return_value=MagicMock(device_id="dev-k"))
+        er.async_get = MagicMock(return_value=registry)
+
+        listener = _listener(hass, MagicMock(), directory=directory)
+        listener.handle(_state_change_event("assist_satellite.kitchen", "idle"))
+        assert directory.state("dev-k") == "idle"
+
+        listener.handle(_state_change_event(
+            "assist_satellite.kitchen", "idle", supported_features=0))
+        with pytest.raises(SatelliteNotFound):
+            directory.resolve("dev-k")
 
     def test_ignores_non_satellite_domain(self):
         hass = MagicMock()
