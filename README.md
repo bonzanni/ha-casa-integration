@@ -29,23 +29,43 @@ Older integrations send neither, so Casa refuses the receipt, the hand-off
 never completes, and the specialist's finished answer expires without being
 spoken. There is no compatibility mode — upgrade the pair together.
 
-## Compatibility and coordinated v0.6.0 upgrade
+## Deferred answers and delivery endpoints
 
-Upgrade Casa to v0.90.0 before installing integration v0.6.0. The releases are
-coordinated: specialist handoff uses WebSocket protocol 2 and requires the
-complete `background_jobs`, `satellite_announce`, and `voice_handoff`
-capability set. Protocol 1 or a missing `voice_handoff` capability fails closed
+Deferred specialist answers are delivered to the device that asked, by whatever
+that device can actually receive. A device with an announce-capable Assist
+satellite is answered aloud on it; a device with only a Companion `notify`
+entity — a phone or tablet — is sent the answer as a notification. A device
+with neither is not promised a deferred answer at all, so Casa says up front
+that it cannot follow up instead of promising an answer that never arrives.
+
+The choice is made once, when the question is asked, from the asking device's
+own entities — never from the shared WebSocket, which says nothing about any
+one device. The spoken acknowledgement matches it: "I'll read it out when it
+lands" only where the answer can be read out. A device with two announce-capable
+satellites and no configured override is treated as having no audio endpoint,
+because delivery would refuse it as ambiguous.
+
+Delivery re-resolves the endpoint when the answer is ready and stays within the
+promised modality, so a satellite that appears in the meantime never captures
+an answer promised as a notification.
+
+## Compatibility and coordinated v0.8.0 upgrade
+
+Upgrade Casa to v0.121.0 before installing integration v0.8.0. The releases are
+coordinated: specialist handoff uses WebSocket protocol 3 and requires the
+complete `background_jobs`, `endpoint_delivery`, and `voice_handoff`
+capability set. An older protocol or a missing `voice_handoff` capability fails closed
 before a job is created; there is no legacy handoff fallback.
 
 Older Casa servers do not expose `GET /api/voice/agents` and cannot create a new
-v0.6.0 entry or reconcile its catalog. An existing v0.6.0 entry with retained children
+v0.8.0 entry or reconcile its catalog. An existing v0.8.0 entry with retained children
 may load in degraded mode without catalog reconciliation while the endpoint is
 unavailable, but it cannot discover new, renamed, or restored agents. This
 recovery behavior does not replace the supported server-first upgrade order:
 the server endpoint release must land before the integration release.
 
-v0.6.0 has no legacy voice-handoff compatibility mode. Upgrade the coordinated
-Casa server and integration pair together; protocol-1 routes are not migrated
+v0.8.0 has no legacy voice-handoff compatibility mode. Upgrade the coordinated
+Casa server and integration pair together; older-protocol routes are not migrated
 or used for a fallback specialist job.
 
 Casa checks an HMAC of the empty HTTP upgrade body to authenticate the
@@ -56,7 +76,7 @@ connection on a trusted LAN, private network, or encrypted tunnel.
 
 ## Install and configure
 
-1. Upgrade Casa to v0.90.0, which includes the authenticated agent catalog and
+1. Upgrade Casa to v0.121.0, which includes the authenticated agent catalog and
    the coordinated protocol-2 voice-handoff contract.
 2. In HACS, open **Integrations** → **⋮** → **Custom repositories**.
 3. Add `https://github.com/bonzanni/casa-ha-integration` with category
@@ -135,7 +155,7 @@ directory and state listener are shared. A disconnected, missing, or failing
 child does not change another child's availability or routing.
 
 With WebSocket transport, each agent registers a protocol-2 route and
-advertises the complete `background_jobs`, `satellite_announce`, and
+advertises the complete `background_jobs`, `endpoint_delivery`, and
 `voice_handoff` capability set. Concierge handoff is enabled only after Casa
 acknowledges every capability on that exact socket generation. Protocol 1 or an
 incomplete registration fails closed before Casa creates the specialist job;
@@ -167,7 +187,7 @@ being silently lost.
 ## Release acceptance
 
 Release acceptance has two layers: reproducible real-system exercises and
-automated fault-injection gates. Both must pass before publishing v0.6.0.
+automated fault-injection gates. Both must pass before publishing v0.8.0.
 
 ### Real-system E2E
 
