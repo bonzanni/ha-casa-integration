@@ -20,6 +20,7 @@ from .catalog import (
     parse_voice_agent_catalog,
 )
 from .const import (
+    HANDOFF_PROTOCOL,
     HEALTH_PATH,
     SSE_PATH,
     TIMEOUT_CONNECT,
@@ -61,6 +62,7 @@ class ErrorFrame:
 class HandoffFrame:
     handoff_id: str
     text: str
+    job_id: str = ""
     kind: str = "handoff"
 
 
@@ -75,11 +77,24 @@ def _bounded_nonempty_handoff_value(value: Any) -> str | None:
 
 
 def _parse_handoff_frame(frame: dict) -> HandoffFrame | None:
+    """Parse Casa's spoken hand-off offer.
+
+    ``job_id`` is REQUIRED: Casa binds the ``handoff_received`` receipt to a
+    job and a route, so a receipt without it is refused and the hand-off stays
+    pending forever — the finished answer then expires and is never spoken
+    (casa-ha-app #233/#224).
+    """
     handoff_id = _bounded_nonempty_handoff_value(frame.get("handoff_id"))
     text = _bounded_nonempty_handoff_value(frame.get("text"))
-    if handoff_id is None or text is None:
+    job_id = _bounded_nonempty_handoff_value(frame.get("job_id"))
+    if handoff_id is None or text is None or job_id is None:
+        _LOGGER.warning(
+            "Casa hand-off frame ignored: missing handoff_id/text/job_id "
+            "(handoff_id=%s text=%s job_id=%s)",
+            handoff_id is not None, text is not None, job_id is not None,
+        )
         return None
-    return HandoffFrame(handoff_id=handoff_id, text=text)
+    return HandoffFrame(handoff_id=handoff_id, text=text, job_id=job_id)
 
 
 class AuthenticationError(Exception):
@@ -597,9 +612,15 @@ class CasaApiClient:
                         continue
                     terminated = True
                     try:
+                        # Casa requires BOTH the protocol marker and the job
+                        # id; a receipt without them is silently refused, the
+                        # hand-off never leaves PENDING, and the specialist's
+                        # answer expires unspoken (casa-ha-app #233/#224).
                         await self._send_json({
                             "type": "handoff_received",
+                            "protocol": HANDOFF_PROTOCOL,
                             "handoff_id": handoff.handoff_id,
+                            "job_id": handoff.job_id,
                         }, ws=ws, generation=generation)
                     except (aiohttp.ClientError, OSError):
                         yield ErrorFrame(kind_="connection", spoken="")

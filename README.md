@@ -1,7 +1,7 @@
 # Casa HA Integration
 
 Companion custom integration that connects Home Assistant to the
-[Casa add-on](https://github.com/bonzanni/casa-ha-app). Integration v0.6.0
+[Casa add-on](https://github.com/bonzanni/casa-ha-app). Integration v0.7.0
 creates one **Casa** parent from the server's authenticated voice-agent catalog,
 then exposes separate role-stable conversation entities for Butler, Concierge,
 and future catalog-discovered agents. Each entity has its own routing, connection,
@@ -19,6 +19,15 @@ jobs.
   `GET /api/voice/agents` schema-1 catalog, running and reachable on the local
   network.
 - HACS (Home Assistant Community Store).
+
+## Compatibility and coordinated v0.7.0 upgrade
+
+Upgrade Casa to v0.120.0 before installing integration v0.7.0. The releases are
+coordinated: the `handoff_received` receipt now echoes the hand-off `protocol`
+and `job_id`, which Casa requires to bind the receipt to a job and a route.
+Older integrations send neither, so Casa refuses the receipt, the hand-off
+never completes, and the specialist's finished answer expires without being
+spoken. There is no compatibility mode — upgrade the pair together.
 
 ## Compatibility and coordinated v0.6.0 upgrade
 
