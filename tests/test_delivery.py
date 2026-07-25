@@ -1565,3 +1565,37 @@ class TestTextDeliveryFailure:
             if frame["type"] == "job_delivered"
         ]
         assert [frame["job_id"] for frame in delivered] == ["job-b"]
+
+    async def test_a_reoffer_after_a_failed_push_is_accepted_and_delivered(
+        self, delivery_manager,
+    ):
+        """The other half of the recovery contract.
+
+        Casa's lease lapses and it reoffers the same job under a fresh attempt.
+        The manager must take that reoffer — not suppress it as already seen or
+        already playing — and a push that works this time must produce
+        `job_delivered`. Proving each side separately is not enough: it is the
+        handover between them that decides whether the operator's answer
+        arrives or expires (casa-ha-app #233/#224).
+        """
+        manager, clock = delivery_manager
+        manager.hass.services.async_call = AsyncMock(
+            side_effect=[RuntimeError("push failed"), None])
+
+        await manager.handle_frame(job_ready(
+            "job-t", attempt_id="attempt-1", delivery_modality="text"))
+        await clock.settle()
+        assert "job_delivered" not in sent_types(manager.client)
+
+        await manager.handle_frame(job_ready(
+            "job-t", attempt_id="attempt-2", sequence=2,
+            delivery_modality="text"))
+        await clock.settle()
+
+        delivered = [
+            frame for frame in manager.client.sent
+            if frame["type"] == "job_delivered"
+        ]
+        assert len(delivered) == 1
+        assert delivered[0]["delivery_attempt_id"] == "attempt-2"
+        assert manager.hass.services.async_call.await_count == 2

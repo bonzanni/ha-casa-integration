@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from custom_components.casa.delivery import SatelliteDirectory, SatelliteNotFound
+from custom_components.casa.delivery import (
+    SatelliteAmbiguous,
+    SatelliteDirectory,
+    SatelliteNotFound,
+)
 from custom_components.casa.registration import SessionRegistrationListener
 
 
@@ -417,3 +421,71 @@ class TestSessionRegistrationListener:
 
         with pytest.raises(SatelliteNotFound):
             directory.resolve("dev-k")
+
+    def test_both_sides_agree_on_the_single_announce_capable_satellite(self):
+        """Offer and delivery must select the SAME entity.
+
+        A device carrying one announce-capable satellite and one that cannot
+        announce is the case where the two sides used to disagree: the offer
+        saw exactly one candidate and promised audio, while the directory saw
+        two and refused the delivery as ambiguous. Both now read the same set.
+        """
+        from custom_components.casa.capability import resolve_endpoint
+
+        hass = MagicMock()
+        directory = SatelliteDirectory()
+
+        from homeassistant.helpers import entity_registry as er
+        registry = MagicMock()
+        registry.async_get = MagicMock(return_value=MagicMock(device_id="dev-k"))
+        er.async_get = MagicMock(return_value=registry)
+
+        listener = _listener(hass, MagicMock(), directory=directory)
+        listener.handle(_state_change_event("assist_satellite.speaker", "idle"))
+        listener.handle(_state_change_event(
+            "assist_satellite.mute", "idle", supported_features=2))
+
+        # Delivery side.
+        assert directory.resolve("dev-k") == "assist_satellite.speaker"
+
+        # Offer side, over the same two entities.
+        entries = [
+            SimpleNamespace(domain="assist_satellite",
+                            entity_id="assist_satellite.speaker"),
+            SimpleNamespace(domain="assist_satellite",
+                            entity_id="assist_satellite.mute"),
+        ]
+        er.async_entries_for_device = lambda *a, **kw: entries
+        hass.states.get = lambda eid: _state(
+            eid, "idle", supported_features=3 if eid.endswith("speaker") else 2)
+
+        assert resolve_endpoint(hass, "dev-k")["entity_id"] == (
+            "assist_satellite.speaker")
+
+    def test_both_sides_refuse_two_announce_capable_satellites(self):
+        """Neither may promise what the other would call ambiguous."""
+        from custom_components.casa.capability import resolve_endpoint
+
+        hass = MagicMock()
+        directory = SatelliteDirectory()
+
+        from homeassistant.helpers import entity_registry as er
+        registry = MagicMock()
+        registry.async_get = MagicMock(return_value=MagicMock(device_id="dev-k"))
+        er.async_get = MagicMock(return_value=registry)
+
+        listener = _listener(hass, MagicMock(), directory=directory)
+        listener.handle(_state_change_event("assist_satellite.a", "idle"))
+        listener.handle(_state_change_event("assist_satellite.b", "idle"))
+
+        with pytest.raises(SatelliteAmbiguous):
+            directory.resolve("dev-k")
+
+        entries = [
+            SimpleNamespace(domain="assist_satellite", entity_id="assist_satellite.a"),
+            SimpleNamespace(domain="assist_satellite", entity_id="assist_satellite.b"),
+        ]
+        er.async_entries_for_device = lambda *a, **kw: entries
+        hass.states.get = lambda eid: _state(eid, "idle")
+
+        assert resolve_endpoint(hass, "dev-k") is None
