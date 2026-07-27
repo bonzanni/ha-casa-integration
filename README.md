@@ -1,7 +1,7 @@
 # Casa HA Integration
 
 Companion custom integration that connects Home Assistant to the
-[Casa add-on](https://github.com/bonzanni/casa-ha-app). Integration v0.7.0
+[Casa add-on](https://github.com/bonzanni/ha-casa-app). Integration v0.7.0
 creates one **Casa** parent from the server's authenticated voice-agent catalog,
 then exposes separate role-stable conversation entities for Butler, Concierge,
 and future catalog-discovered agents. Each entity has its own routing, connection,
@@ -79,7 +79,7 @@ connection on a trusted LAN, private network, or encrypted tunnel.
 1. Upgrade Casa to v0.121.0, which includes the authenticated agent catalog and
    the coordinated voice-handoff contract (route registration protocol 3).
 2. In HACS, open **Integrations** → **⋮** → **Custom repositories**.
-3. Add `https://github.com/bonzanni/casa-ha-integration` with category
+3. Add `https://github.com/bonzanni/ha-casa-integration` with category
    **Integration**.
 4. Install **Casa**, then restart Home Assistant.
 5. When Casa is running as a Supervisor app with webhook authentication enabled,
