@@ -2,7 +2,7 @@
 
 Cross-repo and follow-up items discovered during the 0.2.0 re-sync (2026-07-11).
 
-## App-side (casa-ha-app — separate session)
+## App-side (ha-casa-app — separate session)
 
 These require changes in the Casa add-on repo, not this integration.
 
@@ -18,7 +18,7 @@ These require changes in the Casa add-on repo, not this integration.
    ideally a voice-protocol version) to the payload so the integration can warn on mismatch.
    This is how the two repos drifted invisibly for three months.
 
-3. **Stale prewarm docs.** `casa-agent/DOCS.md:109-110` still claims "On `stt_start`, Casa
+3. **Stale prewarm docs.** `casa/DOCS.md:109-110` still claims "On `stt_start`, Casa
    prewarms the voice session's memory cache." The `stt_start` handler stopped calling
    `schedule_prewarm` in the 0.4x memory re-architecture; it now only registers the scope for
    idle-sweep/dedup. Update the doc (or re-wire prewarm if the overlay is ever used at voice's

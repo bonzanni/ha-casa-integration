@@ -14,14 +14,14 @@
   "dependencies": [
     "conversation"
   ],
-  "documentation": "https://github.com/bonzanni/casa-ha-integration",
+  "documentation": "https://github.com/bonzanni/ha-casa-integration",
   "integration_type": "service",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/bonzanni/casa-ha-integration/issues",
+  "issue_tracker": "https://github.com/bonzanni/ha-casa-integration/issues",
   "loggers": [
     "custom_components.casa"
   ],
   "quality_scale": "custom",
   "requirements": [],
-  "version": "0.8.0"
+  "version": "0.9.0"
 }
