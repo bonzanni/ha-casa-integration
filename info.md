@@ -1,35 +1,26 @@
 # Casa
 
-Casa is the Home Assistant companion integration for the Casa add-on. Version
-0.6.0 connects one **Casa** parent to the server's authenticated voice-agent
+Casa is the Home Assistant companion integration for the Casa app. It connects one **Casa** parent to the server's authenticated voice-agent
 catalog and creates separate role-stable conversation entities for Butler,
 Concierge, and future agents.
 Each child keeps a fixed catalog role and its own client, connection,
 availability, session, background route, and cleanup lifecycle; a missing or
 failing role never falls back to another child.
 
-**Requires:** Home Assistant 2026.4+ and Casa v0.121.0, which exposes the
-authenticated `GET /api/voice/agents` schema 1 catalog and coordinated voice
-handoff.
+**Requires:** Home Assistant 2026.4+ and Casa v0.121.0 or newer.
 
-Upgrade Casa to v0.121.0 before installing integration v0.8.0. Specialist
-handoff uses WebSocket protocol 3 and requires the complete
-`background_jobs`, `endpoint_delivery`, and `voice_handoff` capability set.
-An older protocol or a missing `voice_handoff` capability fails closed before a job is
-created; there is no legacy handoff fallback.
+This integration needs Casa v0.121.0 or newer, so update Casa first if it is
+older. Specialist handoff uses WebSocket protocol 3 and requires the complete
+`background_jobs`, `endpoint_delivery`, and `voice_handoff` capability set. An
+older protocol or a missing `voice_handoff` capability fails closed before a job
+is created; there is no legacy handoff fallback.
 
-Older servers do not provide the required catalog endpoint and cannot create a
-new v0.8.0 entry or reconcile its catalog. An existing v0.8.0 entry with retained children may
-load in degraded mode without catalog reconciliation while the endpoint is
-unavailable, but it cannot discover new, renamed, or restored agents. The
-server release must therefore land before this integration release.
+A Casa server without `GET /api/voice/agents` cannot create a new entry or
+reconcile its catalog. While that endpoint is unavailable, an existing entry with
+retained children may load in degraded mode without catalog reconciliation, but
+it cannot discover new, renamed, or restored agents.
 
-v0.8.0 has no legacy voice-handoff compatibility mode. Upgrade the coordinated
-Casa server and integration pair together; older-protocol routes are not migrated
-or used for a fallback specialist job.
-
-When Casa runs as a Supervisor app with webhook authentication enabled, Home
-Assistant discovers it automatically. Confirm the displayed host and port to
+When Casa runs as a Supervisor app, Home Assistant discovers it automatically. Confirm the displayed host and port to
 connect; the versioned discovery record supplies the authenticated webhook
 secret. If discovery is unavailable, use **Settings → Devices & services → Add
 integration → Casa** and enter the exact host, port, and webhook secret

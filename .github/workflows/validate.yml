@@ -3,8 +3,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * *"
 
 jobs:
   hassfest:
@@ -31,3 +29,26 @@ jobs:
           python-version: "3.12"
       - run: pip install pytest pytest-asyncio aiohttp voluptuous
       - run: pytest -v
+
+  release:
+    # A new manifest version on main, with every check above green, becomes a
+    # tag and a published GitHub release marked latest. HACS and the Marketplace
+    # install from releases; a bare tag is not enough.
+    needs: [hassfest, hacs, tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the release if this version has none
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(jq -r .version custom_components/casa/manifest.json)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already released"
+            exit 0
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --latest \
+            --notes "$(git log -1 --format=%s)"

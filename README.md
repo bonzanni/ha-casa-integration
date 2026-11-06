@@ -1,8 +1,7 @@
 # Casa HA Integration
 
 Companion custom integration that connects Home Assistant to the
-[Casa add-on](https://github.com/bonzanni/ha-casa-app). Integration v0.7.0
-creates one **Casa** parent from the server's authenticated voice-agent catalog,
+[Casa app](https://github.com/bonzanni/ha-casa-app). It creates one **Casa** parent from the server's authenticated voice-agent catalog,
 then exposes separate role-stable conversation entities for Butler, Concierge,
 and future catalog-discovered agents. Each entity has its own routing, connection,
 availability, session settings, and background-delivery lifecycle.
@@ -15,19 +14,9 @@ jobs.
 ## Requirements
 
 - Home Assistant Core 2026.4 or newer.
-- The Casa server release that provides the authenticated
-  `GET /api/voice/agents` schema-1 catalog, running and reachable on the local
-  network.
-- HACS (Home Assistant Community Store).
-
-## Compatibility and coordinated v0.7.0 upgrade
-
-Upgrade Casa to v0.120.0 before installing integration v0.7.0. The releases are
-coordinated: the `handoff_received` receipt now echoes the hand-off `protocol`
-and `job_id`, which Casa requires to bind the receipt to a job and a route.
-Older integrations send neither, so Casa refuses the receipt, the hand-off
-never completes, and the specialist's finished answer expires without being
-spoken. There is no compatibility mode — upgrade the pair together.
+- Casa v0.121.0 or newer, running and reachable on the local network.
+- The Home Assistant Marketplace (built in from 2026.11), or HACS on older
+  Home Assistant versions.
 
 ## Deferred answers and delivery endpoints
 
@@ -49,24 +38,18 @@ Delivery re-resolves the endpoint when the answer is ready and stays within the
 promised modality, so a satellite that appears in the meantime never captures
 an answer promised as a notification.
 
-## Compatibility and coordinated v0.8.0 upgrade
+## Compatibility
 
-Upgrade Casa to v0.121.0 before installing integration v0.8.0. The releases are
-coordinated: specialist handoff uses WebSocket protocol 3 and requires the
-complete `background_jobs`, `endpoint_delivery`, and `voice_handoff`
-capability set. An older protocol or a missing `voice_handoff` capability fails closed
-before a job is created; there is no legacy handoff fallback.
+This integration needs Casa v0.121.0 or newer, so update Casa first if it is
+older. Specialist handoff uses WebSocket protocol 3 and requires the complete
+`background_jobs`, `endpoint_delivery`, and `voice_handoff` capability set. An
+older protocol or a missing `voice_handoff` capability fails closed before a job
+is created; there is no legacy handoff fallback.
 
-Older Casa servers do not expose `GET /api/voice/agents` and cannot create a new
-v0.8.0 entry or reconcile its catalog. An existing v0.8.0 entry with retained children
-may load in degraded mode without catalog reconciliation while the endpoint is
-unavailable, but it cannot discover new, renamed, or restored agents. This
-recovery behavior does not replace the supported server-first upgrade order:
-the server endpoint release must land before the integration release.
-
-v0.8.0 has no legacy voice-handoff compatibility mode. Upgrade the coordinated
-Casa server and integration pair together; older-protocol routes are not migrated
-or used for a fallback specialist job.
+A Casa server without `GET /api/voice/agents` cannot create a new entry or
+reconcile its catalog. While that endpoint is unavailable, an existing entry with
+retained children may load in degraded mode without catalog reconciliation, but
+it cannot discover new, renamed, or restored agents.
 
 Casa checks an HMAC of the empty HTTP upgrade body to authenticate the
 integration client when the WebSocket is established. That handshake does not
@@ -76,20 +59,27 @@ connection on a trusted LAN, private network, or encrypted tunnel.
 
 ## Install and configure
 
-1. Upgrade Casa to v0.121.0, which includes the authenticated agent catalog and
-   the coordinated voice-handoff contract (route registration protocol 3).
-2. In HACS, open **Integrations** → **⋮** → **Custom repositories**.
-3. Add `https://github.com/bonzanni/ha-casa-integration` with category
-   **Integration**.
-4. Install **Casa**, then restart Home Assistant.
-5. When Casa is running as a Supervisor app with webhook authentication enabled,
-   Home Assistant discovers it automatically. Confirm the displayed host and
+1. Make sure Casa is v0.121.0 or newer.
+2. Add this repository as a custom repository:
+   - Home Assistant 2026.11 or newer: go to **Settings → Marketplace → Add from
+     link** and enter `https://github.com/bonzanni/ha-casa-integration`. The
+     Marketplace asks you to connect GitHub if you have not already.
+   - Older versions, in HACS: open **⋮** → **Custom repositories** and add the
+     same URL with type **Integration**.
+3. Download **Casa**.
+4. Restart Home Assistant if asked.
+5. When Casa is running as a Supervisor app, Home Assistant discovers it
+   automatically. Confirm the displayed host and
    port before connecting; the discovery record carries the authenticated
    webhook secret and creates one parent plus its voice-agent children.
 6. If automatic discovery is unavailable, go to **Settings → Devices & services
    → Add integration → Casa** and enter the exact host, port (default `18065`),
    and Casa webhook secret. Manual setup authenticates and validates the same
-   complete catalog.
+   complete catalog. The secret is Casa's `webhook_secret` option or, if that is
+   empty, the generated `/data/webhook_secret`, readable through Casa's web
+   terminal. Casa's port is not published on the host by default, so map
+   `18065/tcp` in the app's network settings to connect from outside its Docker
+   network.
 7. In each Assist pipeline, select the matching discovered role: **Casa Butler
    → Voice** for direct home-control turns, **Casa Concierge → Voice** for
    concierge/specialist work, or the relevant future catalog role.
@@ -103,8 +93,7 @@ Supervisor UUID remains authoritative when Supervisor discovery is available;
 manual setup cannot prove that different aliases for the same host identify the
 same installation, so alias-based duplicates remain possible.
 
-Casa publishes a strict, versioned Supervisor discovery record only while
-webhook authentication is enabled. On a later discovery for the same Supervisor
+Casa publishes a strict, versioned Supervisor discovery record. On a later discovery for the same Supervisor
 UUID, Casa updates the stored endpoint and webhook secret and reloads the
 existing parent; its Butler, Concierge, and future voice-agent children are
 retained.
@@ -186,8 +175,9 @@ being silently lost.
 
 ## Release acceptance
 
-Release acceptance has two layers: reproducible real-system exercises and
-automated fault-injection gates. Both must pass before publishing v0.8.0.
+These are the checks a release should hold up to, in two layers: reproducible
+real-system exercises and controlled fault injection. They are run by hand, not
+in CI, and the repository does not ship the fault-injection tooling.
 
 ### Real-system E2E
 
@@ -215,7 +205,7 @@ catalog endpoint, with the Casa server upgraded first:
 
 ### Controlled fault-injection acceptance
 
-These are automated end-to-end gates, not ad hoc live checks. Run them with a
+Run these with a
 controllable Casa catalog fixture, a WebSocket protocol proxy, and Home
 Assistant task and socket introspection so the injected boundary and every
 required observable are deterministic:
@@ -257,8 +247,8 @@ does not delete a role merely because it is temporarily absent.
   `user_input.context.user_id`.
 - Home Assistant Assist output does not support SSML; Casa sends plain text.
 - Unit tests use lightweight Home Assistant stubs rather than the full
-  pytest-Home-Assistant harness, so both release-acceptance layers remain gates
-  alongside tests, hassfest, and HACS validation.
+  pytest-Home-Assistant harness, so CI's tests, hassfest, and HACS validation do
+  not replace the release-acceptance checks above.
 
 ## License
 

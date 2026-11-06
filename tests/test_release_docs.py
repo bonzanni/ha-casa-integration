@@ -93,7 +93,7 @@ def test_readme_documents_parent_and_child_configuration_boundaries():
 def test_coordinated_voice_handoff_upgrade_is_explicit(filename):
     text = _normalized(filename)
 
-    assert "Upgrade Casa to v0.121.0 before installing integration v0.8.0" in text
+    assert "needs Casa v0.121.0 or newer" in text
     assert "WebSocket protocol 3" in text
     assert "background_jobs" in text
     assert "endpoint_delivery" in text
@@ -101,8 +101,8 @@ def test_coordinated_voice_handoff_upgrade_is_explicit(filename):
     assert "fails closed before a job is created" in text
     assert "no legacy handoff fallback" in text
     assert "GET /api/voice/agents" in text
-    assert "cannot create a new v0.8.0 entry" in text
-    assert "existing v0.8.0 entry with retained children may load in degraded mode" in text
+    assert "cannot create a new entry" in text
+    assert "existing entry with retained children may load in degraded mode" in text
     assert "without catalog reconciliation" in text
 
 
@@ -184,4 +184,6 @@ def test_no_stale_protocol_numbers_survive_in_the_docs(filename):
     assert "protocol-2 voice-handoff" not in text
     assert "Protocol 1 or" not in text
     assert "protocol-1 routes" not in text
+    assert "v0.7.0" not in text
+    assert "v0.8.0" not in text
     assert "satellite_announce" not in text
