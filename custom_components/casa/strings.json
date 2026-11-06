@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Casa",
-        "description": "Connect to your Casa add-on.",
+        "description": "Connect to your Casa app.",
         "data": {
           "host": "Host",
           "port": "Port",
@@ -11,7 +11,7 @@
         }
       },
       "hassio_confirm": {
-        "title": "Casa add-on discovered",
+        "title": "Casa app discovered",
         "description": "Connect to {name} at {host}:{port}?"
       },
       "reauth_confirm": {
@@ -24,7 +24,7 @@
     "error": {
       "invalid_auth": "Invalid webhook secret.",
       "invalid_catalog": "Casa returned an invalid voice-agent catalog. Check Casa's enabled ha_voice agent names and configuration.",
-      "cannot_connect": "Cannot reach the Casa add-on.",
+      "cannot_connect": "Cannot reach the Casa app.",
       "unknown": "Unexpected error."
     },
     "abort": {
