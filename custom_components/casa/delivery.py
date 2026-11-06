@@ -14,7 +14,7 @@ from typing import Any
 
 
 _LOGGER = logging.getLogger(__name__)
-# 2 adds `delivery_modality` to `job_ready` (casa-ha-app #233/#224). The bump
+# 2 adds `delivery_modality` to `job_ready`. The bump
 # is deliberate rather than a tolerant read: a v1 Casa never chose an endpoint,
 # so acting on its frames would mean guessing, and guessing is the bug.
 _PROTOCOL = 2

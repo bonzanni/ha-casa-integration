@@ -154,7 +154,7 @@ def test_deferred_delivery_endpoint_rules_are_explicit(filename):
     Each assertion is a commitment an operator can hold us to: which device
     answers, what happens when it cannot speak, and what happens when it can do
     neither. Silently promising an answer that never arrives is the failure
-    this release exists to end (casa-ha-app #233/#224).
+    these rules exist to end.
     """
     text = _normalized(filename)
 

@@ -234,8 +234,7 @@ class TestSessionRegistrationListener:
         ANNOUNCE. If the delivery-side directory tracked it anyway, a device
         carrying both kinds would look unambiguous when the promise was made
         and ambiguous when the answer arrived — a promise refused at delivery,
-        which is exactly the failure this release removes (casa-ha-app
-        #233/#224).
+        which is exactly the failure this check removes.
         """
         hass = MagicMock()
         directory = SatelliteDirectory()
