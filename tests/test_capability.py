@@ -1,8 +1,7 @@
 """Endpoint delivery capability — the promise Casa is allowed to make.
 
 Casa may only promise a deferred answer the ASKING device can actually
-receive. Every case here is a promise-then-silence failure we have either hit
-in production or had flagged in review:
+receive. Every case here is a promise-then-silence failure:
 
 * an iPhone with no satellite was promised a spoken answer that expired unheard;
 * a *fresh* phone's `notify` entity is legitimately `unknown` — rejecting that
@@ -108,7 +107,7 @@ class TestTextEndpoint:
         assert resolve_endpoint(hass, "dev-2") is None
 
     def test_phone_without_any_endpoint_offers_nothing(self, monkeypatch):
-        """The live failure: an iPhone with trackers and sensors only."""
+        """The original failure: an iPhone with trackers and sensors only."""
         entries = [_entry("device_tracker", "device_tracker.phone"),
                    _entry("sensor", "sensor.phone_battery")]
         hass = _wire(monkeypatch, entries, {})

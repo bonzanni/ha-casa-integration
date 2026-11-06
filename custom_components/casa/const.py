@@ -47,7 +47,7 @@ WS_RECONNECT_MAX = 30
 VOICE_ROUTE_PROTOCOL = 3
 # Concierge specialist hand-off receipt protocol. Casa refuses a
 # `handoff_received` receipt that omits it (and the job id), which leaves the
-# hand-off pending and the finished answer unspoken (casa-ha-app #233/#224).
+# hand-off pending and the finished answer unspoken.
 HANDOFF_PROTOCOL = 2
 # Per-utterance delivery offer: tells Casa how the ORIGINATING device can
 # receive a deferred answer, so the spoken promise matches what will actually

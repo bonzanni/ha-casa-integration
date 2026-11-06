@@ -11,5 +11,5 @@ build/
 .coverage
 htmlcov/
 
-# local Claude config (holds prod host details)
+# local Claude config
 .claude/

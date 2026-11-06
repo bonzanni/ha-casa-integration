@@ -3,7 +3,7 @@
 Casa must decide BEFORE promising a deferred answer whether the ASKING device
 can receive one, and by which modality — otherwise it promises a spoken answer
 to a phone that can only show a notification, and the finished answer is
-silently discarded (casa-ha-app #233/#224).
+silently discarded.
 
 Route capabilities cannot answer that: they describe the WebSocket connection,
 which every device on this Home Assistant shares. Capability belongs to the
@@ -13,8 +13,8 @@ ONE function serves both phases — the utterance-time offer and the
 delivery-time dispatch. That is deliberate: if the two used different rules,
 Casa could promise audio on a device whose satellite delivery later rejects as
 ambiguous, or a satellite appearing after a `text` offer could capture a
-delivery already promised as a notification. Both were identified in review as
-promise-then-silence seams.
+delivery already promised as a notification. Both are promise-then-silence
+seams.
 
 What crosses the wire to Casa is generic — `audio` or `text`, plus how strong
 the receipt is. Casa never learns `assist_satellite`, `notify`, or entity ids.

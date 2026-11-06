@@ -1388,7 +1388,7 @@ class TestProtocolAndPrivacy:
 class TestTextDelivery:
     """A notification endpoint must reach the same DELIVERED state as audio.
 
-    The live failure (#233/#224) is that a phone has no `assist_satellite`, so
+    The failure this prevents is that a phone has no `assist_satellite`, so
     a finished specialist answer had nowhere to go and expired unheard. Text
     delivery closes that, but it must not become a side door: Casa's registry
     only accepts `job_delivered` from a claimed, authorized attempt, so the
@@ -1575,8 +1575,8 @@ class TestTextDeliveryFailure:
         The manager must take that reoffer — not suppress it as already seen or
         already playing — and a push that works this time must produce
         `job_delivered`. Proving each side separately is not enough: it is the
-        handover between them that decides whether the operator's answer
-        arrives or expires (casa-ha-app #233/#224).
+        handover between them that decides whether the user's answer
+        arrives or expires.
         """
         manager, clock = delivery_manager
         manager.hass.services.async_call = AsyncMock(

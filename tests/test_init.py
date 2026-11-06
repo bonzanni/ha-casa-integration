@@ -383,7 +383,7 @@ class TestParentSetup:
 
         # Every manager can re-resolve the endpoint at delivery time, scoped to
         # the modality the job was promised. Without this a text job has no way
-        # to find the phone and the answer is dropped (casa-ha-app #233/#224).
+        # to find the phone and the answer is dropped.
         with patch(
             "custom_components.casa.resolve_endpoint",
             return_value={"entity_id": "notify.phone", "modality": "text"},

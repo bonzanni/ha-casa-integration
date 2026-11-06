@@ -82,8 +82,7 @@ def _parse_handoff_frame(frame: dict) -> HandoffFrame | None:
 
     ``job_id`` is REQUIRED: Casa binds the ``handoff_received`` receipt to a
     job and a route, so a receipt without it is refused and the hand-off stays
-    pending forever — the finished answer then expires and is never spoken
-    (casa-ha-app #233/#224).
+    pending forever — the finished answer then expires and is never spoken.
     """
     handoff_id = _bounded_nonempty_handoff_value(frame.get("handoff_id"))
     text = _bounded_nonempty_handoff_value(frame.get("text"))
@@ -130,7 +129,7 @@ class CasaApiClient:
         # deferred answer. Casa must know this BEFORE it promises one: route
         # capabilities describe the connection, not the device that asked, so
         # advertising them per-route made Casa promise spoken answers to
-        # devices that can only show a notification (casa-ha-app #233/#224).
+        # devices that can only show a notification.
         self._delivery_resolver = delivery_resolver
         self._session = session
         self._base_url = f"http://{host}:{port}"
@@ -651,7 +650,7 @@ class CasaApiClient:
                         # Casa requires BOTH the protocol marker and the job
                         # id; a receipt without them is silently refused, the
                         # hand-off never leaves PENDING, and the specialist's
-                        # answer expires unspoken (casa-ha-app #233/#224).
+                        # answer expires unspoken.
                         await self._send_json({
                             "type": "handoff_received",
                             "protocol": HANDOFF_PROTOCOL,

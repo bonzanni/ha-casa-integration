@@ -3,8 +3,6 @@ on:
   push:
   pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * *"
 
 jobs:
   hassfest:
@@ -31,3 +29,40 @@ jobs:
           python-version: "3.12"
       - run: pip install pytest pytest-asyncio aiohttp voluptuous
       - run: pytest -v
+
+  release:
+    # A new manifest version on main, with every check above green, becomes a
+    # tag and a published GitHub release marked latest. HACS and the Marketplace
+    # install from releases; a bare tag is not enough.
+    needs: [hassfest, hacs, tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the release if this version has none
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(jq -r .version custom_components/casa/manifest.json)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already released"
+            exit 0
+          fi
+          # GitHub makes every new release latest unless told otherwise; a late run
+          # for an older version must not move latest backwards.
+          # Only a confirmed "no release yet" counts as none; any other failure stops here.
+          if ! current=$(gh release view --json tagName --jq .tagName 2>"$RUNNER_TEMP/lookup.err"); then
+            grep -q "release not found" "$RUNNER_TEMP/lookup.err" || { cat "$RUNNER_TEMP/lookup.err" >&2; exit 1; }
+            current=""
+          fi
+          make_latest=true
+          if [ -n "$current" ] && [ "$(printf '%s\n%s\n' "$current" "$tag" | sort -V | tail -1)" != "$tag" ]; then
+            make_latest=false
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --latest="$make_latest" \
+            --notes "$(git log -1 --format=%s)"

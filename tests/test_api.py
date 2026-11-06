@@ -475,7 +475,7 @@ class TestStreamUtteranceWS:
         )]
         # Casa REFUSES a receipt without protocol+job_id: the hand-off then
         # stays PENDING and the specialist's answer expires unspoken
-        # (casa-ha-app #233/#224). Pin the full shape.
+        # Pin the full shape.
         assert [frame for frame in ws.sent if frame.get("type") == "handoff_received"] == [{
             "type": "handoff_received",
             "protocol": 2,
@@ -2315,7 +2315,7 @@ class TestPerUtteranceDeliveryOffer:
 
     Route capabilities describe this shared WebSocket, not the device, which is
     how Casa came to promise a spoken answer to a phone with no speaker and
-    then discard the finished answer (casa-ha-app #233/#224).
+    then discard the finished answer.
     """
 
     async def _frame_for(self, resolver, ws):
