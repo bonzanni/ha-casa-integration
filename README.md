@@ -59,7 +59,7 @@ connection on a trusted LAN, private network, or encrypted tunnel.
 
 ## Install and configure
 
-1. Make sure Casa is v0.121.0 or newer.
+1. Make sure Casa is v0.125.0 or newer.
 2. Add this repository as a custom repository:
    - Home Assistant 2026.11 or newer: go to **Settings → Marketplace → Add from
      link** and enter `https://github.com/bonzanni/ha-casa-integration`. The
