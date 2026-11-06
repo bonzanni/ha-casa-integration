@@ -93,7 +93,7 @@ def test_readme_documents_parent_and_child_configuration_boundaries():
 def test_coordinated_voice_handoff_upgrade_is_explicit(filename):
     text = _normalized(filename)
 
-    assert "needs Casa v0.121.0 or newer" in text
+    assert "needs Casa v0.125.0 or newer" in text
     assert "WebSocket protocol 3" in text
     assert "background_jobs" in text
     assert "endpoint_delivery" in text

@@ -7,9 +7,9 @@ Each child keeps a fixed catalog role and its own client, connection,
 availability, session, background route, and cleanup lifecycle; a missing or
 failing role never falls back to another child.
 
-**Requires:** Home Assistant 2026.4+ and Casa v0.121.0 or newer.
+**Requires:** Home Assistant 2026.4+ and Casa v0.125.0 or newer.
 
-This integration needs Casa v0.121.0 or newer, so update Casa first if it is
+This integration needs Casa v0.125.0 or newer, so update Casa first if it is
 older. Specialist handoff uses WebSocket protocol 3 and requires the complete
 `background_jobs`, `endpoint_delivery`, and `voice_handoff` capability set. An
 older protocol or a missing `voice_handoff` capability fails closed before a job

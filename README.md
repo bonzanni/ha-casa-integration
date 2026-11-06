@@ -14,7 +14,7 @@ jobs.
 ## Requirements
 
 - Home Assistant Core 2026.4 or newer.
-- Casa v0.121.0 or newer, running and reachable on the local network.
+- Casa v0.125.0 or newer, running and reachable on the local network.
 - The Home Assistant Marketplace (built in from 2026.11), or HACS on older
   Home Assistant versions.
 
@@ -40,7 +40,7 @@ an answer promised as a notification.
 
 ## Compatibility
 
-This integration needs Casa v0.121.0 or newer, so update Casa first if it is
+This integration needs Casa v0.125.0 or newer, so update Casa first if it is
 older. Specialist handoff uses WebSocket protocol 3 and requires the complete
 `background_jobs`, `endpoint_delivery`, and `voice_handoff` capability set. An
 older protocol or a missing `voice_handoff` capability fails closed before a job
@@ -77,7 +77,8 @@ connection on a trusted LAN, private network, or encrypted tunnel.
    and Casa webhook secret. Manual setup authenticates and validates the same
    complete catalog. The secret is Casa's `webhook_secret` option or, if that is
    empty, the generated `/data/webhook_secret`, readable through Casa's web
-   terminal. Casa's port is not published on the host by default, so map
+   terminal. If the option is an `op://` reference, enter the value it points
+   to, not the reference. Casa's port is not published on the host by default, so map
    `18065/tcp` in the app's network settings to connect from outside its Docker
    network.
 7. In each Assist pipeline, select the matching discovered role: **Casa Butler
